@@ -1386,8 +1386,13 @@ async function loadBlocks() {
   const tbody = document.getElementById('blocks-tbody');
   tbody.innerHTML = `<tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading…</td></tr>`;
 
-  const today = new Date().toISOString().split('T')[0];
-  const { data } = await sb.from('blocked_slots').select('*').gte('block_date', today).order('block_date');
+  // Remove the date filter to show ALL blocks, or keep it for future blocks only
+  // Option 1: Show ALL blocks (including past)
+  const { data } = await sb.from('blocked_slots').select('*').order('block_date', { ascending: false });
+  
+  // Option 2: Show only future blocks (today onwards) - uncomment this and comment above if preferred
+  // const today = new Date().toISOString().split('T')[0];
+  // const { data } = await sb.from('blocked_slots').select('*').gte('block_date', today).order('block_date');
 
   // Populate product filter in block form
   const blkProd = document.getElementById('blk-product');
@@ -1412,7 +1417,6 @@ async function loadBlocks() {
     </tr>`;
   }).join('');
 }
-
 async function saveBlock() {
   hideAlerts(['block-success', 'block-error']);
   const block_date  = document.getElementById('blk-date').value;
