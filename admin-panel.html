@@ -305,14 +305,10 @@ tbody tr:hover { background: var(--surface2); }
     </div>
     <label class="login-label">Password</label>
     <input type="password" class="login-input" id="login-pass" placeholder="Enter admin password" />
-    <label class="login-label">Supabase URL</label>
-    <input type="text" class="login-input" id="login-url" placeholder="https://xxxx.supabase.co" />
-    <label class="login-label">Service Role Key</label>
-    <input type="password" class="login-input" id="login-key" placeholder="eyJhbGci..." />
     <button class="login-btn" onclick="doLogin()">Sign In →</button>
     <div class="login-error" id="login-error">Incorrect password. Try again.</div>
     <p style="font-size:11px;color:#94A3B8;margin-top:20px;text-align:center;">
-      Service Role Key is stored only in your browser session.<br>Never share this page URL publicly.
+      Secure mode is enabled.<br>Supabase credentials stay on the server.
     </p>
   </div>
 </div>
@@ -814,63 +810,232 @@ tbody tr:hover { background: var(--surface2); }
 <script>
 // ──────────────────────────────────────────────────────────────────
 // CONFIGURATION
-// Change this password to whatever you want
+// Auth is handled server-side via /api/auth/login
 // ──────────────────────────────────────────────────────────────────
-const ADMIN_PASSWORD = 'admin2024';  // ← CHANGE THIS
-
 let sb = null;
 let allProducts = [];
 let allZones    = [];
+let authToken = null;
 const LS_SHOPIFY_DOMAIN = 'shopify_domain';
 const LS_LAST_WEBHOOK_UPDATE = 'last_webhook_update';
+const SS_ADMIN_TOKEN = 'admin_token';
 const ORDER_CATCHUP_MS = 90000;
 let rtChannel = null;
 let refreshDebounceTimer = null;
 let orderCatchupTimer = null;
 let isOrderCatchupRunning = false;
 
+function authHeaders(extra) {
+  const headers = { ...(extra || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  return headers;
+}
+
+function showLoginError(message) {
+  const el = document.getElementById('login-error');
+  if (!el) return;
+  el.textContent = message;
+  el.style.display = 'block';
+}
+
+async function apiFetch(path, options) {
+  const res = await fetch(path, {
+    ...(options || {}),
+    headers: authHeaders(options?.headers)
+  });
+
+  if (res.status === 401) {
+    doLogout();
+    throw new Error('Session expired. Please sign in again.');
+  }
+
+  return res;
+}
+
+function createAdminClient(token) {
+  class QueryBuilder {
+    constructor(table) {
+      this.query = {
+        table,
+        op: 'select',
+        select: '*',
+        count: null,
+        filters: [],
+        orders: [],
+        limit: null,
+        values: null
+      };
+      this._promise = null;
+    }
+
+    select(columns, options) {
+      this.query.op = 'select';
+      this.query.select = columns || '*';
+      this.query.count = options?.count || null;
+      return this;
+    }
+
+    insert(values) {
+      this.query.op = 'insert';
+      this.query.values = values;
+      return this;
+    }
+
+    update(values) {
+      this.query.op = 'update';
+      this.query.values = values;
+      return this;
+    }
+
+    delete() {
+      this.query.op = 'delete';
+      return this;
+    }
+
+    eq(column, value) {
+      this.query.filters.push({ op: 'eq', column, value });
+      return this;
+    }
+
+    gte(column, value) {
+      this.query.filters.push({ op: 'gte', column, value });
+      return this;
+    }
+
+    lte(column, value) {
+      this.query.filters.push({ op: 'lte', column, value });
+      return this;
+    }
+
+    in(column, values) {
+      this.query.filters.push({ op: 'in', column, values });
+      return this;
+    }
+
+    ilike(column, pattern) {
+      this.query.filters.push({ op: 'ilike', column, pattern });
+      return this;
+    }
+
+    not(column, operator, value) {
+      this.query.filters.push({ op: 'not', column, operator, value });
+      return this;
+    }
+
+    order(column, options) {
+      this.query.orders.push({ column, ascending: options?.ascending !== false });
+      return this;
+    }
+
+    limit(value) {
+      this.query.limit = value;
+      return this;
+    }
+
+    async execute() {
+      const res = await fetch('/api/admin/db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(this.query)
+      });
+
+      const json = await res.json().catch(() => ({ data: null, count: null, error: 'Invalid response' }));
+      if (!res.ok) {
+        return { data: null, count: null, error: { message: json?.error || `Request failed (${res.status})` } };
+      }
+      if (json?.error) {
+        return { data: null, count: null, error: { message: json.error } };
+      }
+      return { data: json?.data || [], count: json?.count ?? null, error: null };
+    }
+
+    then(resolve, reject) {
+      if (!this._promise) this._promise = this.execute();
+      return this._promise.then(resolve, reject);
+    }
+
+    catch(reject) {
+      if (!this._promise) this._promise = this.execute();
+      return this._promise.catch(reject);
+    }
+
+    finally(onFinally) {
+      if (!this._promise) this._promise = this.execute();
+      return this._promise.finally(onFinally);
+    }
+  }
+
+  return {
+    from(table) {
+      return new QueryBuilder(table);
+    },
+    channel() {
+      return {
+        on() { return this; },
+        subscribe() { return this; }
+      };
+    },
+    removeChannel() {}
+  };
+}
+
 // ─── LOGIN ────────────────────────────────────────────────────────
-function doLogin() {
+async function doLogin() {
   const pass = document.getElementById('login-pass').value;
-  const url  = document.getElementById('login-url').value.trim();
-  const key  = document.getElementById('login-key').value.trim();
 
-  if (pass !== ADMIN_PASSWORD) {
-    document.getElementById('login-error').style.display = 'block';
-    return;
-  }
-  if (!url || !key) {
-    document.getElementById('login-error').textContent = 'Enter Supabase URL and Service Role Key.';
-    document.getElementById('login-error').style.display = 'block';
+  if (!pass) {
+    showLoginError('Enter admin password.');
     return;
   }
 
-  sb = supabase.createClient(url, key);
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pass })
+  });
+  const json = await res.json().catch(() => ({}));
 
-  // Store in session
-  sessionStorage.setItem('sb_url', url);
-  sessionStorage.setItem('sb_key', key);
+  if (!res.ok || !json?.token) {
+    showLoginError(json?.error || 'Login failed.');
+    return;
+  }
+
+  authToken = json.token;
+  sessionStorage.setItem(SS_ADMIN_TOKEN, authToken);
+  sb = createAdminClient(authToken);
 
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  document.getElementById('login-error').style.display = 'none';
 
   initApp();
 }
 
 function doLogout() {
-  sessionStorage.clear();
+  authToken = null;
+  sb = null;
+  sessionStorage.removeItem(SS_ADMIN_TOKEN);
   location.reload();
 }
 
 // Auto-restore session
-(function() {
-  const url = sessionStorage.getItem('sb_url');
-  const key = sessionStorage.getItem('sb_key');
-  if (url && key) {
-    document.getElementById('login-url').value = url;
-    document.getElementById('login-key').value = key;
-    document.getElementById('login-pass').value = ADMIN_PASSWORD;
+(async function() {
+  const token = sessionStorage.getItem(SS_ADMIN_TOKEN);
+  if (!token) return;
+  authToken = token;
+  const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    sessionStorage.removeItem(SS_ADMIN_TOKEN);
+    authToken = null;
+    return;
   }
+  sb = createAdminClient(token);
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initApp();
 })();
 
 document.getElementById('login-pass').addEventListener('keydown', e => {
@@ -1119,7 +1284,7 @@ async function loadBookings() {
       <td>${slotBadge(r.slot)}</td>
       <td>${r.customer_name || '—'}</td>
       <td>${r.customer_phone || '—'}</td>
-      <td>${r.delivery_governorate || '—'}</td>
+      <td>${r.delivery_governorate || (r.delivery_area ? (allZones.find(z => z.area_name === r.delivery_area)?.governorate || '—') : '—')}</td>
       <td>${r.delivery_area || '—'}</td>
       <td>${r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—'}</td>
       <td>${r.shopify_order_id || '—'}</td>
@@ -1162,6 +1327,7 @@ async function loadOrderData() {
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
     return;
   }
+  const govLabel = r.delivery_governorate || areaLookup?.governorate || '—';
 
   const uniqueOrders = new Set(data.map(r => r.shopify_order_id).filter(Boolean));
   const withArea = data.filter(r => r.delivery_area).length;
@@ -1225,7 +1391,7 @@ function hasShopifyDomain() {
 }
 
 async function callServerSync(endpoint, payload) {
-  const res = await fetch(endpoint, {
+  const res = await apiFetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {})
