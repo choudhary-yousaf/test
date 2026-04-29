@@ -1,3 +1,5 @@
+
+
 <!--
 ===========================================================
   SHOPIFY BOOKING WIDGET v3 — WITH 24-HOUR RESTRICTION
@@ -763,9 +765,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     return '<div id="bk-summary">' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Date</div><div class="bk-sum-val" id="bk-sv-date">—</div></div>' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Slot</div><div class="bk-sum-val" id="bk-sv-slot">—</div></div>' +
-      '<div class="bk-sum-item"><div class="bk-sum-lbl">Governorate</div><div class="bk-sum-val" id="bk-sv-gov">—</div></div>' +
-      '<div class="bk-sum-item"><div class="bk-sum-lbl">Area</div><div class="bk-sum-val" id="bk-sv-area">—</div></div>' +
-      '<div class="bk-sum-item"><div class="bk-sum-lbl">Delivery</div><div class="bk-sum-val" id="bk-sv-price">—</div></div>' +
+
       '</div>';
   }
 
@@ -844,9 +844,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
       }
       render();
     });
-
   }
-
   function bindSlots() {
     document.querySelectorAll('.bk-slot:not(.bk-slot-na)').forEach(function(el) {
       el.addEventListener('click', function() {
