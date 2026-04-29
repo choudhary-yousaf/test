@@ -13,6 +13,7 @@
 <!-- Shopify reads these as order line item properties -->
 <input type="hidden" id="bk-date-val"  name="properties[📅 Date]">
 <input type="hidden" id="bk-slot-val"  name="properties[⏰ Slot]">
+<input type="hidden" id="bk-gov-val"   name="properties[🏛️ Governorate]">
 <input type="hidden" id="bk-area-val"  name="properties[📍 Area]">
 <input type="hidden" id="bk-price-val" name="properties[🚚 Delivery (KD)]">
 
@@ -269,6 +270,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     viewMonth: null,   // Date object — first of displayed month
     selDate: null,     // selected Date
     selSlot: null,     // 'morning' | 'evening'
+    selGovName: null,
     selAreaId: null,
     selAreaName: null,
     selPrice: null,
@@ -570,6 +572,24 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     state.zones = r.data || [];
   }
 
+  function getGovernorates() {
+    var seen = {};
+    var list = [];
+    (state.zones || []).forEach(function(z) {
+      if (!z.governorate) return;
+      if (seen[z.governorate]) return;
+      seen[z.governorate] = true;
+      list.push(z.governorate);
+    });
+    return list;
+  }
+
+  function getZonesForGovernorate(gov) {
+    return (state.zones || []).filter(function(z) {
+      return z.governorate === gov;
+    });
+  }
+
   // ─── Render ──────────────────────────────────────────────────────
   function render() {
     var root = document.getElementById('bk-widget');
@@ -704,9 +724,14 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         '<div class="bk-area-wrap"><div class="bk-slots-ph"><span class="bk-spin"></span>Loading areas…</div></div></div>';
     }
 
-    var opts = '<option value="">— Choose your area —</option>';
-    state.zones.forEach(function(z) {
-      opts += '<option value="' + z.id + '" data-name="' + z.area_name + '" data-price="' + z.price + '"' +
+    var govOpts = '<option value="">— اختر المحافظة —</option>';
+    getGovernorates().forEach(function(g) {
+      govOpts += '<option value="' + g + '"' + (state.selGovName === g ? ' selected' : '') + '>' + g + '</option>';
+    });
+
+    var areaOpts = '<option value="">— اختر المنطقة —</option>';
+    getZonesForGovernorate(state.selGovName).forEach(function(z) {
+      areaOpts += '<option value="' + z.id + '" data-name="' + z.area_name + '" data-price="' + z.price + '"' +
         (state.selAreaId === z.id ? ' selected' : '') + '>' +
         z.area_name + ' — ' + parseFloat(z.price).toFixed(3) + ' KD</option>';
     });
@@ -717,7 +742,8 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
 
     return '<div class="bk-card">' + head +
       '<div class="bk-area-wrap">' +
-      '<select class="bk-area-sel" id="bk-area-sel">' + opts + '</select>' +
+      '<select class="bk-area-sel" id="bk-gov-sel">' + govOpts + '</select>' +
+      '<select class="bk-area-sel" id="bk-area-sel"' + (state.selGovName ? '' : ' disabled') + '>' + areaOpts + '</select>' +
       fee + '</div></div>';
   }
 
@@ -726,6 +752,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     return '<div id="bk-summary">' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Date</div><div class="bk-sum-val" id="bk-sv-date">—</div></div>' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Slot</div><div class="bk-sum-val" id="bk-sv-slot">—</div></div>' +
+      '<div class="bk-sum-item"><div class="bk-sum-lbl">Governorate</div><div class="bk-sum-val" id="bk-sv-gov">—</div></div>' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Area</div><div class="bk-sum-val" id="bk-sv-area">—</div></div>' +
       '<div class="bk-sum-item"><div class="bk-sum-lbl">Delivery</div><div class="bk-sum-val" id="bk-sv-price">—</div></div>' +
       '</div>';
@@ -783,26 +810,37 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
   }
 
   function bindArea() {
-    var sel = document.getElementById('bk-area-sel');
-    if (!sel) return;
-    sel.addEventListener('change', function() {
-      var opt = sel.selectedOptions[0];
-      if (opt && opt.value) {
-        state.selAreaId = opt.value;
-        state.selAreaName = opt.dataset.name;
-        state.selPrice = parseFloat(opt.dataset.price).toFixed(3);
-      } else {
+    var govSel = document.getElementById('bk-gov-sel');
+    var areaSel = document.getElementById('bk-area-sel');
+    if (govSel) {
+      govSel.addEventListener('change', function() {
+        state.selGovName = govSel.value || null;
         state.selAreaId = state.selAreaName = state.selPrice = null;
-      }
-      clearErr();
-      render();
-    });
+        clearErr();
+        render();
+      });
+    }
+    if (areaSel) {
+      areaSel.addEventListener('change', function() {
+        var opt = areaSel.selectedOptions[0];
+        if (opt && opt.value) {
+          state.selAreaId = opt.value;
+          state.selAreaName = opt.dataset.name;
+          state.selPrice = parseFloat(opt.dataset.price).toFixed(3);
+        } else {
+          state.selAreaId = state.selAreaName = state.selPrice = null;
+        }
+        clearErr();
+        render();
+      });
+    }
   }
 
   // ─── Sync hidden inputs & summary ─────────────────────────────────
   function syncHiddenInputs() {
     var dv = document.getElementById('bk-date-val');
     var sv = document.getElementById('bk-slot-val');
+    var gv = document.getElementById('bk-gov-val');
     var av = document.getElementById('bk-area-val');
     var pv = document.getElementById('bk-price-val');
     
@@ -814,6 +852,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         year: 'numeric'
       }) : '';
     if (sv) sv.value = state.selSlot ? SLOTS[state.selSlot].label + ' (' + SLOTS[state.selSlot].time + ')' : '';
+    if (gv) gv.value = state.selGovName || '';
     if (av) av.value = state.selAreaName || '';
     if (pv) pv.value = state.selPrice || '';
   }
@@ -821,11 +860,12 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
   function syncSummary() {
     var el = document.getElementById('bk-summary');
     if (!el) return;
-    var any = state.selDate || state.selSlot || state.selAreaId;
+    var any = state.selDate || state.selSlot || state.selGovName || state.selAreaId;
     if (any) {
       el.classList.add('show');
       var sd = document.getElementById('bk-sv-date');
       var ss = document.getElementById('bk-sv-slot');
+      var sg = document.getElementById('bk-sv-gov');
       var sa = document.getElementById('bk-sv-area');
       var sp = document.getElementById('bk-sv-price');
       if (sd) sd.textContent = state.selDate ?
@@ -835,6 +875,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
           year: 'numeric'
         }) : '—';
       if (ss) ss.textContent = state.selSlot ? SLOTS[state.selSlot].label : '—';
+      if (sg) sg.textContent = state.selGovName || '—';
       if (sa) sa.textContent = state.selAreaName || '—';
       if (sp) sp.textContent = state.selPrice ? state.selPrice + ' KD' : '—';
     } else {
@@ -873,6 +914,10 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
       }
       if (!state.selSlot) {
         showErr('Please select a time slot.');
+        return;
+      }
+      if (!state.selGovName) {
+        showErr('Please select your governorate.');
         return;
       }
       if (!state.selAreaId) {
