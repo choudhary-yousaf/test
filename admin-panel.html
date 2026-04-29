@@ -442,11 +442,11 @@ tbody tr:hover { background: var(--surface2); }
               <thead>
                 <tr>
                   <th>Date</th><th>Product</th><th>Slot</th>
-                  <th>Customer</th><th>Phone</th><th>Area</th><th>Price (KD)</th><th>Order ID</th><th>Actions</th>
+                  <th>Customer</th><th>Phone</th><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Order ID</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="bookings-tbody">
-                <tr class="loading-row"><td colspan="9"><span class="spinner"></span>Loading…</td></tr>
+                <tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -506,11 +506,11 @@ tbody tr:hover { background: var(--surface2); }
               <thead>
                 <tr>
                   <th>Shopify Order</th><th>Product</th><th>Date</th><th>Slot</th>
-                  <th>Customer</th><th>Phone</th><th>Email</th><th>Area</th><th>Price (KD)</th><th>Line Item Properties</th><th>Source Note</th>
+                  <th>Customer</th><th>Phone</th><th>Email</th><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Line Item Properties</th><th>Source Note</th>
                 </tr>
               </thead>
               <tbody id="orders-data-tbody">
-                <tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading…</td></tr>
+                <tr class="loading-row"><td colspan="12"><span class="spinner"></span>Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -542,7 +542,7 @@ tbody tr:hover { background: var(--surface2); }
                 <input type="date" class="form-input" id="nb-date">
               </div>
             </div>
-            <div class="form-row cols-2">
+            <div class="form-row cols-3">
               <div class="form-group">
                 <label class="form-label">Slot *</label>
                 <select class="form-select" id="nb-slot">
@@ -550,6 +550,10 @@ tbody tr:hover { background: var(--surface2); }
                   <option value="morning">Morning (6:30 AM – 8:30 AM)</option>
                   <option value="evening">Evening (2:30 PM – 6:30 PM)</option>
                 </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Governorate *</label>
+                <select class="form-select" id="nb-gov"><option value="">Select governorate…</option></select>
               </div>
               <div class="form-group">
                 <label class="form-label">Delivery Area *</label>
@@ -672,6 +676,11 @@ tbody tr:hover { background: var(--surface2); }
 
               <input type="hidden" id="zone-edit-id">
               <div class="form-group" style="margin-bottom:14px;">
+                <label class="form-label">Governorate *</label>
+                <input type="text" class="form-input" id="zone-gov" list="zone-gov-list" placeholder="e.g. محافظة العاصمة">
+                <datalist id="zone-gov-list"></datalist>
+              </div>
+              <div class="form-group" style="margin-bottom:14px;">
                 <label class="form-label">Area Name *</label>
                 <input type="text" class="form-input" id="zone-name" placeholder="e.g. Salmiya">
               </div>
@@ -695,10 +704,10 @@ tbody tr:hover { background: var(--surface2); }
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Area</th><th>Price (KD)</th><th>Status</th><th>Actions</th></tr>
+                  <tr><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="zones-tbody">
-                  <tr class="loading-row"><td colspan="4"><span class="spinner"></span>Loading…</td></tr>
+                  <tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1020,14 +1029,27 @@ function populateProductFilters() {
   }
 
   // Populate area dropdown in new booking form
+  const govEl = document.getElementById('nb-gov');
   const areaEl = document.getElementById('nb-area');
-  if (areaEl) {
-    areaEl.innerHTML = `<option value="">Select area…</option>` +
-      allZones.map(z => `<option value="${z.area_name}" data-price="${z.price}">${z.area_name} — ${parseFloat(z.price).toFixed(3)} KD</option>`).join('');
-    areaEl.addEventListener('change', e => {
+  if (govEl && areaEl) {
+    const govs = Array.from(new Set(allZones.map(z => z.governorate).filter(Boolean)));
+    govEl.innerHTML = `<option value="">Select governorate…</option>` +
+      govs.map(g => `<option value="${g}">${g}</option>`).join('');
+
+    areaEl.innerHTML = `<option value="">Select area…</option>`;
+
+    govEl.onchange = () => {
+      const gov = govEl.value;
+      const zones = allZones.filter(z => z.governorate === gov);
+      areaEl.innerHTML = `<option value="">Select area…</option>` +
+        zones.map(z => `<option value="${z.area_name}" data-price="${z.price}">${z.area_name} — ${parseFloat(z.price).toFixed(3)} KD</option>`).join('');
+      document.getElementById('nb-price').value = '';
+    };
+
+    areaEl.onchange = e => {
       const opt = e.target.selectedOptions[0];
       if (opt && opt.dataset.price) document.getElementById('nb-price').value = parseFloat(opt.dataset.price).toFixed(3);
-    });
+    };
   }
 }
 
@@ -1075,7 +1097,7 @@ async function loadDashboard() {
 // ─── ALL BOOKINGS ─────────────────────────────────────────────────
 async function loadBookings() {
   const tbody = document.getElementById('bookings-tbody');
-  tbody.innerHTML = `<tr class="loading-row"><td colspan="9"><span class="spinner"></span>Loading…</td></tr>`;
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading…</td></tr>`;
 
   let query = sb.from('bookings').select('*').order('booking_date', { ascending: false });
 
@@ -1087,7 +1109,7 @@ async function loadBookings() {
   const { data, error } = await query.limit(200);
   if (error || !data.length) {
     if (error) console.error('loadBookings error:', error);
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading bookings' : 'No bookings found'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading bookings' : 'No bookings found'}</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(r => `
@@ -1097,6 +1119,7 @@ async function loadBookings() {
       <td>${slotBadge(r.slot)}</td>
       <td>${r.customer_name || '—'}</td>
       <td>${r.customer_phone || '—'}</td>
+      <td>${r.delivery_governorate || '—'}</td>
       <td>${r.delivery_area || '—'}</td>
       <td>${r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—'}</td>
       <td>${r.shopify_order_id || '—'}</td>
@@ -1116,7 +1139,7 @@ function clearOrderFilters() {
 async function loadOrderData() {
   const tbody = document.getElementById('orders-data-tbody');
   if (!tbody) return;
-  tbody.innerHTML = `<tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading…</td></tr>`;
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="12"><span class="spinner"></span>Loading…</td></tr>`;
 
   let query = sb.from('bookings')
     .select('*')
@@ -1136,7 +1159,7 @@ async function loadOrderData() {
     document.getElementById('order-stat-lines').textContent = '0';
     document.getElementById('order-stat-area').textContent = '0';
     document.getElementById('order-stat-phone').textContent = '0';
-    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
     return;
   }
 
@@ -1157,6 +1180,7 @@ async function loadOrderData() {
       <td>${r.customer_name || '—'}</td>
       <td>${r.customer_phone || '—'}</td>
       <td>${r.customer_email || '—'}</td>
+      <td>${r.delivery_governorate || '—'}</td>
       <td>${r.delivery_area || '—'}</td>
       <td>${r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—'}</td>
       <td style="font-size:12px;line-height:1.6;white-space:normal;min-width:280px;">
@@ -1176,12 +1200,14 @@ function orderPropertySnapshot(r) {
     : r.slot === 'evening'
       ? 'Evening (2:30 PM – 6:30 PM)'
       : '—';
+  const govLabel = r.delivery_governorate || '—';
   const areaLabel = r.delivery_area || '—';
   const priceLabel = r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—';
 
   return `
     <div><strong>📅 Date:</strong> ${dateLabel}</div>
     <div><strong>⏰ Slot:</strong> ${slotLabel}</div>
+    <div><strong>🏛️ Governorate:</strong> ${govLabel}</div>
     <div><strong>📍 Area:</strong> ${areaLabel}</div>
     <div><strong>🚚 Delivery (KD):</strong> ${priceLabel}</div>
   `;
@@ -1308,11 +1334,20 @@ async function saveNewBooking() {
     showAlert('booking-error', '⚠ Product, date, and slot are required.');
     return;
   }
+  if (!document.getElementById('nb-gov').value) {
+    showAlert('booking-error', '⚠ Governorate is required.');
+    return;
+  }
+  if (!area) {
+    showAlert('booking-error', '⚠ Delivery area is required.');
+    return;
+  }
 
   const record = {
     product_id,
     booking_date,
     slot,
+    delivery_governorate: document.getElementById('nb-gov').value || null,
     delivery_area:    area || null,
     delivery_price:   document.getElementById('nb-price').value   || null,
     shopify_order_id: document.getElementById('nb-orderid').value || null,
@@ -1396,22 +1431,29 @@ async function deleteBlock(id) {
 // ─── DELIVERY ZONES ───────────────────────────────────────────────
 async function loadZones() {
   const tbody = document.getElementById('zones-tbody');
-  tbody.innerHTML = `<tr class="loading-row"><td colspan="4"><span class="spinner"></span>Loading…</td></tr>`;
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading…</td></tr>`;
 
   const { data } = await sb.from('delivery_zones').select('*').order('sort_order');
   allZones = data || [];
 
+  const govList = document.getElementById('zone-gov-list');
+  if (govList) {
+    const govs = Array.from(new Set(allZones.map(z => z.governorate).filter(Boolean)));
+    govList.innerHTML = govs.map(g => `<option value="${g}"></option>`).join('');
+  }
+
   if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94A3B8;">No zones yet</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:#94A3B8;">No zones yet</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(z => `
     <tr>
+      <td>${z.governorate || '—'}</td>
       <td>${z.area_name}</td>
       <td>${parseFloat(z.price).toFixed(3)} KD</td>
       <td><span class="badge ${z.is_active ? 'badge-active' : 'badge-blocked'}">${z.is_active ? 'Active' : 'Hidden'}</span></td>
       <td style="display:flex;gap:6px;">
-        <button class="btn btn-outline btn-sm" onclick="editZone('${z.id}','${z.area_name}','${z.price}','${z.sort_order}')">Edit</button>
+        <button class="btn btn-outline btn-sm" onclick="editZone('${z.id}','${z.area_name}','${z.price}','${z.sort_order}','${z.governorate || ''}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="toggleZone('${z.id}', ${z.is_active})">${z.is_active ? 'Hide' : 'Show'}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteZone('${z.id}')">Delete</button>
       </td>
@@ -1420,18 +1462,19 @@ async function loadZones() {
 
 async function saveZone() {
   hideAlerts(['zone-success', 'zone-error']);
+  const gov   = document.getElementById('zone-gov').value.trim();
   const name  = document.getElementById('zone-name').value.trim();
   const price = document.getElementById('zone-price').value;
   const sort  = document.getElementById('zone-sort').value || 0;
   const editId = document.getElementById('zone-edit-id').value;
 
-  if (!name || !price) { showAlert('zone-error', '⚠ Name and price are required.'); return; }
+  if (!gov || !name || !price) { showAlert('zone-error', '⚠ Governorate, name, and price are required.'); return; }
 
   let error;
   if (editId) {
-    ({ error } = await sb.from('delivery_zones').update({ area_name: name, price, sort_order: sort }).eq('id', editId));
+    ({ error } = await sb.from('delivery_zones').update({ governorate: gov, area_name: name, price, sort_order: sort }).eq('id', editId));
   } else {
-    ({ error } = await sb.from('delivery_zones').insert({ area_name: name, price, sort_order: sort }));
+    ({ error } = await sb.from('delivery_zones').insert({ governorate: gov, area_name: name, price, sort_order: sort }));
   }
 
   if (error) {
@@ -1447,8 +1490,9 @@ async function saveZone() {
   }
 }
 
-function editZone(id, name, price, sort) {
+function editZone(id, name, price, sort, governorate) {
   document.getElementById('zone-edit-id').value = id;
+  document.getElementById('zone-gov').value     = governorate || '';
   document.getElementById('zone-name').value    = name;
   document.getElementById('zone-price').value   = parseFloat(price).toFixed(3);
   document.getElementById('zone-sort').value    = sort;
@@ -1457,6 +1501,7 @@ function editZone(id, name, price, sort) {
 
 function resetZoneForm() {
   document.getElementById('zone-edit-id').value = '';
+  document.getElementById('zone-gov').value     = '';
   document.getElementById('zone-name').value    = '';
   document.getElementById('zone-price').value   = '';
   document.getElementById('zone-sort').value    = '';
