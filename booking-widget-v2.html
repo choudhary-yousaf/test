@@ -284,6 +284,20 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
   };
 
   // ─── TIME RESTRICTION HELPERS (24-hour rule) ─────────────────────
+
+  function nowPlus24Hours() {
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
+  }
+
+  function getSlotStart(date, slotKey) {
+    var hour = slotKey === 'morning' ? 6 : 14;
+    var minute = 30;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0);
+  }
+
+  function isSlotBookable(date, slotKey) {
+    return getSlotStart(date, slotKey) >= nowPlus24Hours();
+  }
   
   // Get the minimum bookable date (24 hours from now, at midnight)
   function getMinBookableDate() {
@@ -305,16 +319,13 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
 
   // Check if a date is bookable (not past, not today, not within 24 hours)
   function isDateBookable(date) {
-    var minDate = getMinBookableDate();
     var maxDate = getMaxBookableDate();
     
-    // Reset time to midnight for comparison
     var compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    var compareMin = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
     var compareMax = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
     
-    // Date must be >= minDate and <= maxDate
-    return compareDate >= compareMin && compareDate <= compareMax;
+    // Date must be within max range and have at least one bookable slot
+    return compareDate <= compareMax && (isSlotBookable(date, 'morning') || isSlotBookable(date, 'evening'));
   }
 
   // Format date for API (YYYY-MM-DD)
@@ -652,13 +663,14 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
       ['morning', 'evening'].forEach(function(key) {
         var info = SLOTS[key];
         var avail = state.avail ? state.avail[key] : null;
+        var tooSoon = state.selDate ? !isSlotBookable(state.selDate, key) : false;
         var isSel = state.selSlot === key;
-        var isNa = avail === false;
+        var isNa = avail === false || tooSoon;
         var stTxt, stCls;
         if (avail === null) {
           stTxt = 'Checking…';
           stCls = 'bk-st-chk';
-        } else if (avail) {
+        } else if (avail && !tooSoon) {
           stTxt = 'Available';
           stCls = 'bk-st-ok';
         } else {
@@ -749,6 +761,10 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         render();
 
         state.avail = await checkAvail(el.dataset.d);
+        if (state.avail) {
+          state.avail.morning = state.avail.morning && isSlotBookable(selectedDate, 'morning');
+          state.avail.evening = state.avail.evening && isSlotBookable(selectedDate, 'evening');
+        }
         state.checking = false;
         render();
       });
@@ -863,7 +879,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         return;
       }
 
-      if (!isDateBookable(state.selDate)) {
+      if (!isDateBookable(state.selDate) || !isSlotBookable(state.selDate, state.selSlot)) {
         showErr('This date is no longer available for booking. Please choose another date.');
         return;
       }
