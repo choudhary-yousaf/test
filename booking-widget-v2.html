@@ -275,6 +275,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     selAreaName: null,
     selPrice: null,
     avail: null,       // { morning: bool|null, evening: bool|null }
+    showSlots: false,
     zones: [],
     linkedProduct: null,
     productIds: [BK_PRODUCT_ID],
@@ -596,14 +597,13 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     if (!root) return;
     root.innerHTML =
       renderCalCard() +
-      renderSlotCard() +
-      renderAreaCard() +
+      renderSlotLabel() +
+      (state.showSlots ? renderSlotCard() : '') +
       renderSummary() +
       '<div id="bk-err"></div>';
 
     bindCal();
     bindSlots();
-    bindArea();
     syncHiddenInputs();
     syncSummary();
   }
@@ -712,6 +712,17 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
     return '<div class="bk-card">' + head + body + '</div>';
   }
 
+  // Small clickable label shown under the calendar that reveals slots when clicked
+  function renderSlotLabel() {
+    var show = state.showSlots;
+    var disabled = !state.selDate ? ' disabled' : '';
+    var lbl = '<div class="bk-card headless" style="margin-bottom:10px;padding:10px 14px;cursor:pointer;border:1px solid #F0EAF8;background:#FFF">' +
+      '<div style="font-weight:600;font-size:14px;color:var(--mid)">اختر فترة التوصيل</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:6px">' + (show ? '← اختر الآن' : 'انقر لعرض الفترات المتاحة') + '</div>' +
+      '</div>';
+    return '<div id="bk-slot-label"' + disabled + '>' + lbl + '</div>';
+  }
+
   // ── Area card ─────────────────────────────────────────────────────
   function renderAreaCard() {
     var done = !!state.selAreaId;
@@ -785,18 +796,55 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         state.selDate = selectedDate;
         state.selSlot = null;
         state.avail = null;
+        state.showSlots = false;
         state.checking = true;
         render();
 
-        state.avail = await checkAvail(el.dataset.d);
-        if (state.avail) {
-          state.avail.morning = state.avail.morning && isSlotBookable(selectedDate, 'morning');
-          state.avail.evening = state.avail.evening && isSlotBookable(selectedDate, 'evening');
+        // Preload availability for performance but keep slots hidden until user clicks label
+        try {
+          var pre = await checkAvail(el.dataset.d);
+          state.avail = pre;
+          if (state.avail) {
+            state.avail.morning = state.avail.morning && isSlotBookable(selectedDate, 'morning');
+            state.avail.evening = state.avail.evening && isSlotBookable(selectedDate, 'evening');
+          }
+        } catch (e) {
+          state.avail = null;
         }
         state.checking = false;
         render();
       });
     });
+    
+    // Label click to reveal slots (delegated - element may be re-rendered)
+    document.addEventListener('click', async function (ev) {
+      var el = ev.target;
+      var container = el.closest && el.closest('#bk-slot-label');
+      if (!container) return;
+      if (!state.selDate) {
+        showErr('Please pick a date first.');
+        return;
+      }
+      clearErr();
+      state.showSlots = true;
+      // ensure availability is loaded
+      if (!state.avail) {
+        state.checking = true;
+        render();
+        try {
+          state.avail = await checkAvail(fmt(state.selDate));
+          if (state.avail) {
+            state.avail.morning = state.avail.morning && isSlotBookable(state.selDate, 'morning');
+            state.avail.evening = state.avail.evening && isSlotBookable(state.selDate, 'evening');
+          }
+        } catch (e) {
+          state.avail = null;
+        }
+        state.checking = false;
+      }
+      render();
+    });
+
   }
 
   function bindSlots() {
@@ -852,9 +900,10 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         year: 'numeric'
       }) : '';
     if (sv) sv.value = state.selSlot ? SLOTS[state.selSlot].label + ' (' + SLOTS[state.selSlot].time + ')' : '';
-    if (gv) gv.value = state.selGovName || '';
-    if (av) av.value = state.selAreaName || '';
-    if (pv) pv.value = state.selPrice || '';
+    // Area/governorate must be selected at checkout level — clear them here
+    if (gv) gv.value = '';
+    if (av) av.value = '';
+    if (pv) pv.value = '';
   }
 
   function syncSummary() {
@@ -916,14 +965,7 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
         showErr('Please select a time slot.');
         return;
       }
-      if (!state.selGovName) {
-        showErr('Please select your governorate.');
-        return;
-      }
-      if (!state.selAreaId) {
-        showErr('Please select your delivery area.');
-        return;
-      }
+      // Delivery area selection is performed at checkout; do not require it here.
 
       if (!isDateBookable(state.selDate) || !isSlotBookable(state.selDate, state.selSlot)) {
         showErr('This date is no longer available for booking. Please choose another date.');
