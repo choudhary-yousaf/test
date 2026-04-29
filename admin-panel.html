@@ -1189,8 +1189,6 @@ async function loadDashboard() {
       <td>${productNameFor(r.product_id)}</td>
       <td>${slotBadge(r.slot)}</td>
       <td>${r.customer_name || '—'}</td>
-      <td>${r.delivery_area || '—'}</td>
-      <td>${r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—'}</td>
       <td>${r.shopify_order_id || '—'}</td>
     </tr>`).join('');
 }
@@ -1220,9 +1218,6 @@ async function loadBookings() {
       <td>${slotBadge(r.slot)}</td>
       <td>${r.customer_name || '—'}</td>
       <td>${r.customer_phone || '—'}</td>
-      <td>${r.delivery_governorate || (r.delivery_area ? (allZones.find(z => z.area_name === r.delivery_area)?.governorate || '—') : '—')}</td>
-      <td>${r.delivery_area || '—'}</td>
-      <td>${r.delivery_price ? parseFloat(r.delivery_price).toFixed(3) : '—'}</td>
       <td>${r.shopify_order_id || '—'}</td>
       <td>
         <button class="btn btn-danger btn-sm" onclick="deleteBooking('${r.id}')">Delete</button>
