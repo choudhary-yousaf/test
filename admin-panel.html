@@ -334,16 +334,10 @@ tbody tr:hover { background: var(--surface2); }
         <div class="nav-item" onclick="showPage('orders-data')" id="nav-orders-data">
           <span class="nav-icon">🧾</span> Order Data
         </div>
-        <div class="nav-item" onclick="showPage('new-booking')" id="nav-new-booking">
-          <span class="nav-icon">➕</span> Add Booking
-        </div>
         <div class="divider" style="margin:10px 0;"></div>
         <div class="nav-section-label">Settings</div>
         <div class="nav-item" onclick="showPage('blocks')" id="nav-blocks">
           <span class="nav-icon">🚫</span> Block Dates
-        </div>
-        <div class="nav-item" onclick="showPage('zones')" id="nav-zones">
-          <span class="nav-icon">📍</span> Delivery Zones
         </div>
         <div class="nav-item" onclick="showPage('products')" id="nav-products">
           <span class="nav-icon">🛍️</span> Products
@@ -369,7 +363,6 @@ tbody tr:hover { background: var(--surface2); }
             <div class="page-title">Dashboard</div>
             <div class="page-subtitle" id="dash-date">Loading…</div>
           </div>
-          <button class="btn btn-accent" onclick="showPage('new-booking')">+ Add Booking</button>
         </div>
 
         <div class="stats-row">
@@ -438,7 +431,7 @@ tbody tr:hover { background: var(--surface2); }
               <thead>
                 <tr>
                   <th>Date</th><th>Product</th><th>Slot</th>
-                  <th>Customer</th><th>Phone</th><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Order ID</th><th>Actions</th>
+                  <th>Customer</th><th>Phone</th><th>Order ID</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody id="bookings-tbody">
@@ -502,7 +495,7 @@ tbody tr:hover { background: var(--surface2); }
               <thead>
                 <tr>
                   <th>Shopify Order</th><th>Product</th><th>Date</th><th>Slot</th>
-                  <th>Customer</th><th>Phone</th><th>Email</th><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Line Item Properties</th><th>Source Note</th>
+                  <th>Customer</th><th>Phone</th><th>Email</th><th>Line Item Properties</th><th>Source Note</th>
                 </tr>
               </thead>
               <tbody id="orders-data-tbody">
@@ -646,63 +639,6 @@ tbody tr:hover { background: var(--surface2); }
                   <tr><th>Date</th><th>Slot</th><th>Product</th><th>Reason</th><th></th></tr>
                 </thead>
                 <tbody id="blocks-tbody">
-                  <tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading…</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== DELIVERY ZONES ===== -->
-      <div class="page" id="page-zones">
-        <div class="page-header">
-          <div>
-            <div class="page-title">Delivery Zones</div>
-            <div class="page-subtitle">Add, edit, or remove Kuwait delivery areas and prices</div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;">
-          <div class="card">
-            <div class="card-header" id="zone-form-title">➕ Add Zone</div>
-            <div class="card-body">
-              <div class="alert alert-success" id="zone-success">✅ Saved!</div>
-              <div class="alert alert-error"   id="zone-error">⚠ Error.</div>
-
-              <input type="hidden" id="zone-edit-id">
-              <div class="form-group" style="margin-bottom:14px;">
-                <label class="form-label">Governorate *</label>
-                <input type="text" class="form-input" id="zone-gov" list="zone-gov-list" placeholder="e.g. محافظة العاصمة">
-                <datalist id="zone-gov-list"></datalist>
-              </div>
-              <div class="form-group" style="margin-bottom:14px;">
-                <label class="form-label">Area Name *</label>
-                <input type="text" class="form-input" id="zone-name" placeholder="e.g. Salmiya">
-              </div>
-              <div class="form-group" style="margin-bottom:14px;">
-                <label class="form-label">Delivery Price (KD) *</label>
-                <input type="number" class="form-input" id="zone-price" step="0.001" placeholder="1.500">
-              </div>
-              <div class="form-group" style="margin-bottom:18px;">
-                <label class="form-label">Sort Order</label>
-                <input type="number" class="form-input" id="zone-sort" placeholder="0">
-              </div>
-              <div style="display:flex;gap:10px;">
-                <button class="btn btn-accent" onclick="saveZone()">Save Zone</button>
-                <button class="btn btn-outline btn-sm" onclick="resetZoneForm()">Cancel</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">📍 All Zones</div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Governorate</th><th>Area</th><th>Price (KD)</th><th>Status</th><th>Actions</th></tr>
-                </thead>
-                <tbody id="zones-tbody">
                   <tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading…</td></tr>
                 </tbody>
               </table>
@@ -1327,6 +1263,7 @@ async function loadOrderData() {
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
     return;
   }
+
   const uniqueOrders = new Set(data.map(r => r.shopify_order_id).filter(Boolean));
   const withArea = data.filter(r => r.delivery_area).length;
   const withPhone = data.filter(r => r.customer_phone).length;
@@ -1374,9 +1311,6 @@ function orderPropertySnapshot(r) {
   return `
     <div><strong>📅 Date:</strong> ${dateLabel}</div>
     <div><strong>⏰ Slot:</strong> ${slotLabel}</div>
-    <div><strong>🏛️ Governorate:</strong> ${govLabel}</div>
-    <div><strong>📍 Area:</strong> ${areaLabel}</div>
-    <div><strong>🚚 Delivery (KD):</strong> ${priceLabel}</div>
   `;
 }
 
