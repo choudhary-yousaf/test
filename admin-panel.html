@@ -464,9 +464,9 @@ tbody tr:hover { background: var(--surface2); }
             <div class="stat-sub">rows imported from orders</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">With Delivery Area</div>
-            <div class="stat-value" id="order-stat-area">—</div>
-            <div class="stat-sub">rows with mapped area</div>
+            <div class="stat-label">With Customer Email</div>
+            <div class="stat-value" id="order-stat-email">—</div>
+            <div class="stat-sub">rows with mapped email</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">With Customer Phone</div>
@@ -1171,7 +1171,7 @@ async function loadOrderData() {
   if (error || !data?.length) {
     document.getElementById('order-stat-unique').textContent = '0';
     document.getElementById('order-stat-lines').textContent = '0';
-    document.getElementById('order-stat-area').textContent = '0';
+    document.getElementById('order-stat-email').textContent = '0';
     document.getElementById('order-stat-phone').textContent = '0';
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
     return;
@@ -1180,9 +1180,10 @@ async function loadOrderData() {
   const uniqueOrders = new Set(data.map(r => r.shopify_order_id).filter(Boolean));
   const withArea = data.filter(r => r.delivery_area).length;
   const withPhone = data.filter(r => r.customer_phone).length;
+  const withEmail = data.filter(r => r.customer_email).length;
   document.getElementById('order-stat-unique').textContent = String(uniqueOrders.size);
   document.getElementById('order-stat-lines').textContent = String(data.length);
-  document.getElementById('order-stat-area').textContent = String(withArea);
+  document.getElementById('order-stat-email').textContent = String(withEmail);
   document.getElementById('order-stat-phone').textContent = String(withPhone);
 
   tbody.innerHTML = data.map(r => `
