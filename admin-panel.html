@@ -1327,8 +1327,6 @@ async function loadOrderData() {
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:24px;color:#94A3B8;">${error ? 'Error loading order data' : 'No order-linked bookings found'}</td></tr>`;
     return;
   }
-  const govLabel = r.delivery_governorate || areaLookup?.governorate || '—';
-
   const uniqueOrders = new Set(data.map(r => r.shopify_order_id).filter(Boolean));
   const withArea = data.filter(r => r.delivery_area).length;
   const withPhone = data.filter(r => r.customer_phone).length;
