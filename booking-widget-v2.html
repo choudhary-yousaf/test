@@ -411,13 +411,14 @@ var BK_LINKED_PAIRS = [["8811194319045", "8811194548421"]];
 
     if (!matched.length) return;
 
-    var productIds = [BK_PRODUCT_ID];
-    var linkedIds = [linkedFallback];
+    var base = matched.find(function(p) { return p.id === BK_PRODUCT_ID; }) ||
+      matched.find(function(p) { return shopifyId && p.shopify_product_id && String(p.shopify_product_id) === shopifyId; }) ||
+      matched.find(function(p) { return handle && p.shopify_handle && String(p.shopify_handle).toLowerCase() === handle.toLowerCase(); }) ||
+      matched[0];
 
-    matched.forEach(function(p) {
-      productIds.push(p.id);
-      if (p.linked_product_id) linkedIds.push(p.linked_product_id);
-    });
+    var productIds = base && base.id ? [base.id] : [BK_PRODUCT_ID];
+    var linkedIds = [linkedFallback];
+    if (base && base.linked_product_id) linkedIds.push(base.linked_product_id);
 
     state.productIds = uniq(productIds);
     state.linkedProductIds = uniq(linkedIds);
