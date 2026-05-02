@@ -11,6 +11,7 @@ const TOKEN_TTL_SECONDS = 2 * 60 * 60;
 const LOGIN_WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 15 * 60 * 1000);
 const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 5);
 const LOGIN_LOCKOUT_MS = Number(process.env.LOGIN_LOCKOUT_MS || 15 * 60 * 1000);
+const SHOPIFY_ORDER_SYNC_INTERVAL_MS = Number(process.env.SHOPIFY_ORDER_SYNC_INTERVAL_MS || 1 * 60 * 1000);
 const ALLOWED_TABLES = new Set(['products', 'bookings', 'blocked_slots', 'delivery_zones']);
 const ALLOWED_FILTER_OPS = new Set(['eq', 'gte', 'lte', 'in', 'ilike', 'not']);
 
@@ -178,6 +179,20 @@ function resolveShopifyDomain(requestDomain) {
 
 function resolveShopifyToken() {
 	return String(process.env.SHOPIFY_ADMIN_API_TOKEN || '').trim();
+}
+
+async function syncShopifyOrdersOnce(domainOverride) {
+	const domain = resolveShopifyDomain(domainOverride);
+	const token = resolveShopifyToken();
+
+	if (!domain) {
+		throw new Error('Missing Shopify domain');
+	}
+	if (!token) {
+		throw new Error('Missing SHOPIFY_ADMIN_API_TOKEN');
+	}
+
+	return invokeSupabaseSync('shopify-orders-sync', { domain, token });
 }
 
 function applyFilter(url, filter) {
@@ -354,22 +369,37 @@ app.post('/api/shopify/sync-products', requireAuth, async (req, res) => {
 
 app.post('/api/shopify/sync-orders', requireAuth, async (req, res) => {
 	try {
-		const domain = resolveShopifyDomain(req.body?.domain);
-		const token = resolveShopifyToken();
-
-		if (!domain) {
-			return res.status(400).json({ error: 'Missing Shopify domain' });
-		}
-		if (!token) {
-			return res.status(500).json({ error: 'Missing SHOPIFY_ADMIN_API_TOKEN' });
-		}
-
-		const data = await invokeSupabaseSync('shopify-orders-sync', { domain, token });
+		const data = await syncShopifyOrdersOnce(req.body?.domain);
 		res.json(data);
 	} catch (error) {
 		res.status(500).json({ error: error.message || 'Order sync failed' });
 	}
 });
 
+let orderSyncTimer = null;
+let orderSyncInFlight = false;
+
+async function runBackgroundOrderSync() {
+	if (orderSyncInFlight) return;
+	const domain = resolveShopifyDomain();
+	if (!domain || !resolveShopifyToken()) return;
+
+	orderSyncInFlight = true;
+	try {
+		await syncShopifyOrdersOnce(domain);
+		console.log('[orders] background sync complete');
+	} catch (error) {
+		console.error('[orders] background sync failed:', error.message || error);
+	} finally {
+		orderSyncInFlight = false;
+	}
+}
+
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on ${port}`));
+app.listen(port, () => {
+	console.log(`Server running on ${port}`);
+	if (SHOPIFY_ORDER_SYNC_INTERVAL_MS > 0) {
+		runBackgroundOrderSync();
+		orderSyncTimer = setInterval(runBackgroundOrderSync, SHOPIFY_ORDER_SYNC_INTERVAL_MS);
+	}
+});
